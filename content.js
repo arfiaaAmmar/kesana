@@ -6,6 +6,217 @@
 // SHARED UTILITIES
 // ========================================
 
+/**
+ * Show toast notification
+ */
+function showToast(message, type = 'info', duration = 4000) {
+    // Remove existing toasts
+    const existingToast = document.getElementById('kesana-toast');
+    if (existingToast) {
+        existingToast.remove();
+    }
+
+    // Create toast container
+    const toast = document.createElement('div');
+    toast.id = 'kesana-toast';
+
+    // Set colors based on type
+    let backgroundColor, icon;
+    switch(type) {
+        case 'success':
+            backgroundColor = '#10B981';
+            icon = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+            break;
+        case 'error':
+            backgroundColor = '#EF4444';
+            icon = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+            break;
+        case 'warning':
+            backgroundColor = '#F59E0B';
+            icon = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+            break;
+        default:
+            backgroundColor = '#3B82F6';
+            icon = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+    }
+
+    toast.style.cssText = `
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        background: ${backgroundColor};
+        color: white;
+        padding: 16px 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 10001;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 300px;
+        max-width: 500px;
+        animation: slideIn 0.3s ease;
+        font-size: 14px;
+        font-weight: 500;
+    `;
+
+    toast.innerHTML = `
+        <style>
+            @keyframes slideIn {
+                from {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+            @keyframes slideOut {
+                from {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+                to {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+            }
+        </style>
+        <div style="flex-shrink: 0;">${icon}</div>
+        <div style="flex: 1;">${message}</div>
+        <button id="kesana-toast-close" style="background: none; border: none; color: white; cursor: pointer; padding: 0; margin: 0; flex-shrink: 0;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        </button>
+    `;
+
+    document.body.appendChild(toast);
+
+    // Close button handler
+    document.getElementById('kesana-toast-close').addEventListener('click', () => {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    });
+
+    // Auto-remove after duration
+    if (duration > 0) {
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, duration);
+    }
+}
+
+/**
+ * Show progress modal for task uploads
+ */
+function showProgressModal(totalTasks) {
+    // Remove existing modal
+    const existingModal = document.getElementById('kesana-progress-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    // Create modal overlay
+    const modalOverlay = document.createElement('div');
+    modalOverlay.id = 'kesana-progress-modal';
+    modalOverlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10002;
+    `;
+
+    // Create modal content
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: white;
+        border-radius: 12px;
+        padding: 32px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    `;
+
+    modalContent.innerHTML = `
+        <div style="text-align: center;">
+            <h2 style="margin: 0 0 24px 0; font-size: 20px; color: #333; font-weight: 600;">Creating Tasks</h2>
+
+            <div style="margin-bottom: 16px;">
+                <div style="background: #f3f4f6; border-radius: 999px; height: 12px; overflow: hidden; position: relative;">
+                    <div id="kesana-progress-bar" style="background: linear-gradient(90deg, #FF584A, #FF7A6E); height: 100%; width: 0%; transition: width 0.3s ease; border-radius: 999px;"></div>
+                </div>
+            </div>
+
+            <div id="kesana-progress-text" style="font-size: 14px; color: #666; margin-bottom: 8px;">
+                Preparing... (0 of ${totalTasks})
+            </div>
+
+            <div id="kesana-progress-details" style="font-size: 12px; color: #999; min-height: 20px;">
+            </div>
+
+            <div id="kesana-progress-errors" style="margin-top: 16px; max-height: 150px; overflow-y: auto; text-align: left; display: none;">
+            </div>
+        </div>
+    `;
+
+    modalOverlay.appendChild(modalContent);
+    document.body.appendChild(modalOverlay);
+
+    return {
+        update: (current, taskName, hasError = false) => {
+            const progressBar = document.getElementById('kesana-progress-bar');
+            const progressText = document.getElementById('kesana-progress-text');
+            const progressDetails = document.getElementById('kesana-progress-details');
+
+            if (progressBar && progressText) {
+                const percentage = (current / totalTasks) * 100;
+                progressBar.style.width = percentage + '%';
+                progressText.textContent = `${current} of ${totalTasks} tasks ${current === totalTasks ? 'completed' : 'created'}`;
+
+                if (taskName && current < totalTasks) {
+                    progressDetails.textContent = `Creating: ${taskName}`;
+                } else {
+                    progressDetails.textContent = '';
+                }
+            }
+        },
+        addError: (taskName, error) => {
+            const errorsContainer = document.getElementById('kesana-progress-errors');
+            if (errorsContainer) {
+                errorsContainer.style.display = 'block';
+                const errorItem = document.createElement('div');
+                errorItem.style.cssText = `
+                    background: #FEE2E2;
+                    border-left: 3px solid #EF4444;
+                    padding: 8px 12px;
+                    margin-bottom: 8px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                `;
+                errorItem.innerHTML = `<strong>${taskName}</strong>: ${error}`;
+                errorsContainer.appendChild(errorItem);
+            }
+        },
+        close: () => {
+            setTimeout(() => {
+                modalOverlay.remove();
+            }, 1000);
+        }
+    };
+}
+
 async function createExcelTemplate(){
     // Create workbook and worksheet using ExcelJS
     const workbook = new ExcelJS.Workbook();
@@ -217,7 +428,7 @@ function uploadExcelModal() {
                 } else {
                     projectSelect.innerHTML = '<option value="">Error loading projects</option>';
                     console.error('Error fetching projects:', projectsResponse.error);
-                    alert('Error loading projects: ' + projectsResponse.error);
+                    showToast('Error loading projects: ' + projectsResponse.error, 'error');
                 }
             });
         } else {
@@ -251,12 +462,12 @@ function uploadExcelModal() {
         const selectedProject = projectSelect.value;
 
         if (!fileInput.files[0]) {
-            alert('Please select an Excel file');
+            showToast('Please select an Excel file', 'warning');
             return;
         }
 
         if (!selectedProject) {
-            alert('Please select a project');
+            showToast('Please select a project', 'warning');
             return;
         }
 
@@ -326,50 +537,77 @@ function uploadExcelModal() {
                 console.log('Total tasks parsed:', tasks.length);
 
                 if (tasks.length === 0) {
-                    alert('No tasks found in the Excel file');
+                    showToast('No tasks found in the Excel file', 'warning');
                     return;
                 }
 
-                // Show progress
-                const uploadBtn = document.getElementById('upload-confirm-btn');
-                uploadBtn.textContent = `Creating ${tasks.length} tasks...`;
-                uploadBtn.disabled = true;
+                // Close the modal and show progress
+                modalOverlay.remove();
 
-                // Send to background script to create tasks
-                chrome.runtime.sendMessage({
-                    action: 'uploadExcel',
-                    projectGid: selectedProject,
-                    tasks: tasks
-                }, (response) => {
-                    if (!response) {
-                        alert('Error: No response from background script. Check console for errors.');
-                        uploadBtn.textContent = 'Upload & Create Tasks';
-                        uploadBtn.disabled = false;
-                        return;
-                    }
+                // Show progress modal
+                const progressModal = showProgressModal(tasks.length);
 
-                    if (response.success) {
-                        // Check if any tasks failed
-                        const failedTasks = response.results.filter(r => !r.success);
-                        const successCount = response.results.filter(r => r.success).length;
+                // Create tasks one by one with progress updates
+                (async () => {
+                    const results = [];
+                    let successCount = 0;
+                    let failedCount = 0;
 
-                        if (failedTasks.length > 0) {
-                            const failedNames = failedTasks.map(t => `- ${t.taskName}: ${t.error}`).join('\n');
-                            alert(`Created ${successCount} tasks successfully.\n\n${failedTasks.length} tasks failed:\n${failedNames}`);
-                        } else {
-                            alert(`Successfully created ${successCount} tasks!`);
+                    for (let i = 0; i < tasks.length; i++) {
+                        const task = tasks[i];
+
+                        // Update progress
+                        progressModal.update(i, task.name);
+
+                        try {
+                            // Create task via background script
+                            const result = await new Promise((resolve) => {
+                                chrome.runtime.sendMessage({
+                                    action: 'createTask',
+                                    projectGid: selectedProject,
+                                    taskData: task
+                                }, resolve);
+                            });
+
+                            results.push(result);
+
+                            if (result.success) {
+                                successCount++;
+                            } else {
+                                failedCount++;
+                                progressModal.addError(task.name, result.error || 'Unknown error');
+                            }
+                        } catch (error) {
+                            failedCount++;
+                            progressModal.addError(task.name, error.message);
+                            results.push({ success: false, error: error.message, taskName: task.name });
                         }
-                        modalOverlay.remove();
-                    } else {
-                        alert('Error creating tasks: ' + (response.error || 'Unknown error'));
-                        uploadBtn.textContent = 'Upload & Create Tasks';
-                        uploadBtn.disabled = false;
+
+                        // Update final count
+                        progressModal.update(i + 1, null);
+
+                        // Small delay to avoid rate limiting
+                        if (i < tasks.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
                     }
-                });
+
+                    // Show completion message
+                    if (failedCount === 0) {
+                        showToast(`Successfully created ${successCount} task${successCount > 1 ? 's' : ''}!`, 'success', 5000);
+                    } else if (successCount > 0) {
+                        showToast(`Created ${successCount} task${successCount > 1 ? 's' : ''}. ${failedCount} failed (see details above).`, 'warning', 0);
+                    } else {
+                        showToast(`All ${failedCount} task${failedCount > 1 ? 's' : ''} failed to create.`, 'error', 0);
+                    }
+
+                    // Close progress modal
+                    progressModal.close();
+                })();
 
             } catch (error) {
                 console.error('Error processing Excel file:', error);
-                alert('Error reading Excel file: ' + error.message);
+                showToast('Error reading Excel file: ' + error.message, 'error');
             }
         };
 
@@ -747,9 +985,10 @@ function createFloatingActionButton() {
     console.log("Download Excel clicked");
     try {
       await createExcelTemplate();
+      showToast('Excel template downloaded successfully!', 'success');
     } catch (error) {
       console.error("Error creating Excel template:", error);
-      alert("Error creating Excel template: " + error.message);
+      showToast('Error creating Excel template: ' + error.message, 'error');
     }
     mainActionBtn.classList.remove("active");
     actionMenu.classList.remove("show");

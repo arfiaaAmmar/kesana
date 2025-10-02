@@ -381,7 +381,7 @@ function buildTaskHtmlDescription(taskData) {
 // MESSAGE HANDLERS
 // ========================================
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   // Handle async operations properly
   (async () => {
     try {
