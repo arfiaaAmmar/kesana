@@ -103,6 +103,106 @@ async function findUserByEmail(workspaceGid, email) {
 }
 
 /**
+ * Upload an attachment to an Asana task
+ */
+async function uploadAttachment(taskGid, imageData, filename = 'image.jpg') {
+  try {
+    // Get session cookie for auth
+    const cookie = await chrome.cookies.get({
+      url: 'https://app.asana.com',
+      name: 'ticket'
+    });
+
+    if (!cookie) {
+      throw new Error('Not logged in to Asana');
+    }
+
+    // Strip data URI prefix if present
+    let base64Data = imageData;
+    if (imageData.includes('base64,')) {
+      base64Data = imageData.split('base64,')[1];
+    }
+
+    // Decode base64 to binary
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    // Check size (Asana limit is 100MB)
+    if (bytes.length > 100 * 1024 * 1024) {
+      throw new Error('Image too large (max 100MB)');
+    }
+
+    // Determine MIME type from base64 header
+    let mimeType = 'image/jpeg';
+    if (base64Data.startsWith('iVBOR')) {
+      mimeType = 'image/png';
+    } else if (base64Data.startsWith('R0lGOD')) {
+      mimeType = 'image/gif';
+    }
+
+    // Build multipart/form-data body manually
+    const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
+    const encoder = new TextEncoder();
+
+    // Build body parts
+    const parts = [];
+
+    // Part 1: parent (task GID)
+    parts.push(encoder.encode(`--${boundary}\r\n`));
+    parts.push(encoder.encode('Content-Disposition: form-data; name="parent"\r\n\r\n'));
+    parts.push(encoder.encode(`${taskGid}\r\n`));
+
+    // Part 2: file
+    parts.push(encoder.encode(`--${boundary}\r\n`));
+    parts.push(encoder.encode(`Content-Disposition: form-data; name="file"; filename="${filename}"\r\n`));
+    parts.push(encoder.encode(`Content-Type: ${mimeType}\r\n\r\n`));
+    parts.push(bytes);
+    parts.push(encoder.encode('\r\n'));
+
+    // Closing boundary
+    parts.push(encoder.encode(`--${boundary}--\r\n`));
+
+    // Concatenate all parts
+    const totalLength = parts.reduce((sum, part) => sum + part.length, 0);
+    const body = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const part of parts) {
+      body.set(part, offset);
+      offset += part.length;
+    }
+
+    // Send request
+    const response = await fetch(`${ASANA_API_BASE}/attachments`, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-Allow-Asana-Client': '1',
+        'Accept': 'application/json',
+        'Content-Type': `multipart/form-data; boundary=${boundary}`
+      },
+      credentials: 'include',
+      body: body
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('Attachment uploaded:', result.data);
+    return result.data;
+
+  } catch (error) {
+    console.error('Error uploading attachment:', error);
+    throw error;
+  }
+}
+
+/**
  * Create a task in Asana
  */
 async function createTask(projectGid, taskData) {
@@ -160,7 +260,9 @@ async function createTask(projectGid, taskData) {
       allImages.push(...taskData.imageData.map(data => ({ type: 'base64', data: data })));
     }
 
-    for (const image of allImages) {
+    const uploadedAttachments = [];
+    for (let i = 0; i < allImages.length; i++) {
+      const image = allImages[i];
       try {
         if (image.type === 'url') {
           // Add comment with image URL
@@ -173,21 +275,33 @@ async function createTask(projectGid, taskData) {
             })
           });
         } else if (image.type === 'base64') {
-          // For base64 images, add as a comment with the base64 data
-          // Note: Asana API doesn't support direct base64 upload via REST API
-          // We'll add it as a comment for now
-          await asanaApiCall(`/tasks/${taskGid}/stories`, {
-            method: 'POST',
-            body: JSON.stringify({
-              data: {
-                text: '[Image attached - view in Excel or re-upload via Asana UI]'
-              }
-            })
-          });
+          // Upload as actual attachment
+          const filename = `image_${i + 1}.jpg`;
+          const attachment = await uploadAttachment(taskGid, image.data, filename);
+          uploadedAttachments.push(attachment);
+          console.log(`Uploaded attachment ${i + 1}/${allImages.length}`);
         }
       } catch (imageError) {
         console.warn('Error adding image:', imageError);
       }
+    }
+
+    // Update notes with attachment references
+    if (uploadedAttachments.length > 0) {
+      const attachmentLinks = uploadedAttachments
+        .map((att, i) => `[Image ${i + 1}](${att.permalink_url})`)
+        .join('\n');
+
+      const updatedNotes = notes + '\n\n---\nAttachments:\n' + attachmentLinks;
+
+      await asanaApiCall(`/tasks/${taskGid}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          data: {
+            notes: updatedNotes
+          }
+        })
+      });
     }
 
     // Add tags if provided
@@ -204,7 +318,7 @@ async function createTask(projectGid, taskData) {
       }
     }
 
-    return { success: true, task: data.data };
+    return { success: true, task: data.data, attachmentCount: uploadedAttachments.length };
   } catch (error) {
     console.error('Error creating task:', error);
     return { success: false, error: error.message, taskName: taskData.name };
