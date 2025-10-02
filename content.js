@@ -490,7 +490,12 @@ function uploadExcelModal() {
                 worksheet.eachRow((row, rowNumber) => {
                     const rowData = [];
                     row.eachCell({ includeEmpty: true }, (cell) => {
-                        rowData.push(cell.value);
+                        // Handle rich text objects - extract plain text
+                        let value = cell.value;
+                        if (value && typeof value === 'object' && value.richText) {
+                            value = value.richText.map(t => t.text).join('');
+                        }
+                        rowData.push(value);
                     });
                     jsonData.push(rowData);
                 });
@@ -519,18 +524,39 @@ function uploadExcelModal() {
                     const imageUrls = row[1] && typeof row[1] === 'string' ? row[1].split(',').map(url => url.trim()).filter(url => url) : [];
                     const embeddedImageData = rowImages.map(img => img.data);
 
+                    // Process assignee - ensure it's a string or null
+                    let assigneeEmail = null;
+                    if (row[3]) {
+                        if (typeof row[3] === 'string') {
+                            assigneeEmail = row[3].trim();
+                        } else if (typeof row[3] === 'object' && row[3].text) {
+                            // Handle hyperlink objects
+                            assigneeEmail = row[3].text.trim();
+                        } else {
+                            assigneeEmail = String(row[3]).trim();
+                        }
+                        // Only keep if it's a valid email format
+                        if (assigneeEmail && !assigneeEmail.includes('@')) {
+                            console.warn(`Invalid email format for assignee: "${assigneeEmail}"`);
+                            assigneeEmail = null;
+                        }
+                    }
+
                     const task = {
                         name: row[0],
                         imageUrls: imageUrls, // URL-based images
                         imageData: embeddedImageData, // Base64 embedded images
                         description: row[2] || '',
-                        assignee: row[3] || null,
+                        assignee: assigneeEmail,
                         dueDate: row[4] || null,
                         tags: row[5] && typeof row[5] === 'string' ? row[5].split(',').map(t => t.trim()) : [],
                         notes: row[6] || ''
                     };
 
                     console.log('Parsed task:', task);
+                    if (assigneeEmail) {
+                        console.log(`✓ Task "${task.name}" will be assigned to: ${assigneeEmail}`);
+                    }
                     tasks.push(task);
                 }
 

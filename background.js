@@ -93,9 +93,20 @@ async function fetchUserProjects() {
  */
 async function findUserByEmail(workspaceGid, email) {
   try {
-    const data = await asanaApiCall(`/workspaces/${workspaceGid}/users?opt_fields=gid,email`);
+    console.log(`Looking up user with email: "${email}" in workspace: ${workspaceGid}`);
+    const data = await asanaApiCall(`/workspaces/${workspaceGid}/users?opt_fields=gid,email,name`);
+    console.log(`Found ${data.data.length} users in workspace`);
+
     const user = data.data.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
-    return user ? user.gid : null;
+
+    if (user) {
+      console.log(`✓ Found user: ${user.name} (${user.email}) with GID: ${user.gid}`);
+      return user.gid;
+    } else {
+      console.warn(`✗ No user found with email: ${email}`);
+      console.log('Available users:', data.data.map(u => u.email).join(', '));
+      return null;
+    }
   } catch (error) {
     console.error('Error finding user:', error);
     return null;
@@ -231,16 +242,20 @@ async function createTask(projectGid, taskData) {
 
     // If assignee is provided, try to find the user by email
     if (taskData.assignee) {
+      const assigneeEmail = String(taskData.assignee).trim();
+      console.log(`Processing assignee for task "${taskData.name}": "${assigneeEmail}"`);
+
       // Get workspace from project
       const projectData = await asanaApiCall(`/projects/${projectGid}?opt_fields=workspace.gid`);
       const workspaceGid = projectData.data.workspace.gid;
 
       // Find user by email
-      const userGid = await findUserByEmail(workspaceGid, taskData.assignee);
+      const userGid = await findUserByEmail(workspaceGid, assigneeEmail);
       if (userGid) {
         taskPayload.assignee = userGid;
+        console.log(`✓ Assigned task "${taskData.name}" to user GID: ${userGid}`);
       } else {
-        console.warn(`User not found for email: ${taskData.assignee}`);
+        console.warn(`✗ User not found for email: ${assigneeEmail} - task will be unassigned`);
       }
     }
 
