@@ -6,77 +6,141 @@
 // SHARED UTILITIES
 // ========================================
 
-function createExcelTemplate(){
-    // Create workbook and worksheet
-    const wb = XLSX.utils.book_new();
+async function createExcelTemplate(){
+    // Create workbook and worksheet using ExcelJS
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Tasks');
 
     // Define template columns for Asana task creation
     const headers = [
-        'Task Name',
+        'Task Name*',
+        'Images',
         'Description',
-        'Assignee',
-        'Due Date',
-        'Priority',
-        'Status',
-        'Section',
-        'Tags',
-        'Parent Task',
+        'Assignee Email',
+        'Due Date (YYYY-MM-DD)',
+        'Tags (comma separated)',
         'Notes'
     ];
 
-    // Create sample rows with helpful placeholders
+    // Create instruction row
+    const instructions = [
+        'Enter task name (required)',
+        'Paste image or enter URL',
+        'Detailed description of the task',
+        'Email of the assignee',
+        'Format: 2025-12-31',
+        'tag1, tag2, tag3',
+        'Any additional notes'
+    ];
+
+    // Create sample rows
     const sampleData = [
         [
-            'Example Task 1',
-            'Task description goes here',
-            'user@example.com',
-            '2025-12-31',
-            'High',
-            'Not Started',
-            'To Do',
-            'tag1, tag2',
-            '',
-            'Additional notes'
+            'Design homepage mockup',
+            'https://via.placeholder.com/800x600.png/FF584A/FFFFFF?text=Homepage+Mockup',
+            'Create high-fidelity mockups for the new homepage design',
+            'designer@example.com',
+            '2025-12-15',
+            'design, homepage',
+            'Use brand colors from style guide'
         ],
         [
-            'Example Task 2',
-            'Another task description',
-            'user@example.com',
-            '2025-12-31',
-            'Medium',
-            'In Progress',
-            'In Progress',
-            'tag3',
-            'Example Task 1',
-            ''
+            'Implement user authentication',
+            'You can paste screenshots here',
+            'Add login and signup functionality with OAuth',
+            'developer@example.com',
+            '2025-12-20',
+            'backend, security',
+            'Use JWT for session management'
+        ],
+        [
+            'Review Q4 budget',
+            'https://via.placeholder.com/600x400.png/4CAF50/FFFFFF?text=Budget+Chart',
+            'Analyze and approve Q4 marketing budget',
+            'manager@example.com',
+            '2025-12-10',
+            'finance, review',
+            'Focus on ROI metrics'
         ]
     ];
 
-    // Combine headers and sample data
-    const wsData = [headers, ...sampleData];
+    // Add headers
+    worksheet.addRow(headers);
 
-    // Create worksheet
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    // Style header row
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFF584A' }
+    };
+
+    // Add instruction row
+    worksheet.addRow(instructions);
+
+    // Add sample data
+    sampleData.forEach(row => {
+        worksheet.addRow(row);
+    });
 
     // Set column widths
-    ws['!cols'] = [
-        { wch: 30 },  // Task Name
-        { wch: 40 },  // Description
-        { wch: 25 },  // Assignee
-        { wch: 12 },  // Due Date
-        { wch: 10 },  // Priority
-        { wch: 15 },  // Status
-        { wch: 15 },  // Section
-        { wch: 20 },  // Tags
-        { wch: 25 },  // Parent Task
-        { wch: 30 }   // Notes
+    worksheet.columns = [
+        { width: 35 },  // Task Name
+        { width: 50 },  // Images
+        { width: 50 },  // Description
+        { width: 30 },  // Assignee Email
+        { width: 25 },  // Due Date
+        { width: 25 },  // Tags
+        { width: 40 }   // Notes
     ];
 
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Asana Tasks');
-
     // Generate Excel file and download
-    XLSX.writeFile(wb, 'Asana_Task_Template.xlsx');
+    const fileName = `Asana_Tasks_Template_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    // Create download link
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+/**
+ * Extract embedded images from Excel using ExcelJS
+ */
+async function extractImagesFromExcel(arrayBuffer) {
+    const images = [];
+
+    try {
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(arrayBuffer);
+
+        const worksheet = workbook.worksheets[0];
+
+        // Extract images from worksheet
+        worksheet.getImages().forEach(image => {
+            const img = workbook.model.media[image.imageId];
+            if (img) {
+                // Get image position (row and column)
+                const { tl } = image.range; // top-left position
+
+                images.push({
+                    row: tl.nativeRow,
+                    col: tl.nativeCol,
+                    data: `data:${img.type};base64,${img.buffer.toString('base64')}`,
+                    extension: img.extension
+                });
+            }
+        });
+    } catch (error) {
+        console.error('Error extracting images:', error);
+    }
+
+    return images;
 }
 
 /**
@@ -137,10 +201,10 @@ function uploadExcelModal() {
     // Fetch and populate projects from Asana API
     const projectSelect = document.getElementById('project-select');
 
-    // Check if user is authenticated and fetch projects
-    chrome.runtime.sendMessage({ action: 'getAccessToken' }, (response) => {
-        if (response.success && response.token) {
-            // User is authenticated, fetch projects
+    // Check if user is logged in to Asana
+    chrome.runtime.sendMessage({ action: 'checkAuth' }, (response) => {
+        if (response.success && response.isAuthenticated) {
+            // User is logged in, fetch projects
             chrome.runtime.sendMessage({ action: 'fetchProjects' }, (projectsResponse) => {
                 if (projectsResponse.success) {
                     projectSelect.innerHTML = '<option value="">Select a project...</option>';
@@ -153,40 +217,26 @@ function uploadExcelModal() {
                 } else {
                     projectSelect.innerHTML = '<option value="">Error loading projects</option>';
                     console.error('Error fetching projects:', projectsResponse.error);
+                    alert('Error loading projects: ' + projectsResponse.error);
                 }
             });
         } else {
-            // User not authenticated, show sign-in option
-            projectSelect.innerHTML = '<option value="">Please sign in to Asana first</option>';
+            // User not logged in to Asana
+            projectSelect.innerHTML = '<option value="">Please log in to Asana first</option>';
 
-            // Add sign-in button
-            const signInBtn = document.createElement('button');
-            signInBtn.textContent = 'Sign in to Asana';
-            signInBtn.style.cssText = 'width: 100%; padding: 8px; margin-top: 8px; background: #FF584A; color: white; border: none; border-radius: 4px; cursor: pointer;';
-            projectSelect.parentElement.appendChild(signInBtn);
+            // Add message
+            const message = document.createElement('p');
+            message.textContent = 'You need to be logged in to Asana to use this feature.';
+            message.style.cssText = 'margin-top: 8px; font-size: 14px; color: #666;';
+            projectSelect.parentElement.appendChild(message);
 
-            signInBtn.addEventListener('click', () => {
-                chrome.runtime.sendMessage({ action: 'authenticate' }, (authResponse) => {
-                    if (authResponse.success) {
-                        // Reload projects after authentication
-                        signInBtn.remove();
-                        projectSelect.innerHTML = '<option value="">Loading projects...</option>';
-                        chrome.runtime.sendMessage({ action: 'fetchProjects' }, (projectsResponse) => {
-                            if (projectsResponse.success) {
-                                projectSelect.innerHTML = '<option value="">Select a project...</option>';
-                                projectsResponse.projects.forEach(project => {
-                                    const option = document.createElement('option');
-                                    option.value = project.gid;
-                                    option.textContent = project.name;
-                                    projectSelect.appendChild(option);
-                                });
-                            }
-                        });
-                    } else {
-                        alert('Authentication failed: ' + authResponse.error);
-                    }
-                });
-            });
+            // Add link to Asana
+            const loginLink = document.createElement('a');
+            loginLink.textContent = 'Open Asana in new tab';
+            loginLink.href = 'https://app.asana.com';
+            loginLink.target = '_blank';
+            loginLink.style.cssText = 'display: inline-block; margin-top: 8px; color: #FF584A; font-weight: 600; text-decoration: none;';
+            projectSelect.parentElement.appendChild(loginLink);
         }
     });
 
@@ -210,11 +260,120 @@ function uploadExcelModal() {
             return;
         }
 
-        // TODO: Process Excel file and create tasks in selected project
-        console.log('Selected project:', selectedProject);
-        console.log('Selected file:', fileInput.files[0]);
+        // Read and process Excel file
+        const file = fileInput.files[0];
+        const reader = new FileReader();
 
-        modalOverlay.remove();
+        reader.onload = async function(e) {
+            try {
+                const arrayBuffer = e.target.result;
+
+                // Use ExcelJS to read the workbook
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(arrayBuffer);
+
+                const worksheet = workbook.worksheets[0];
+
+                // Convert worksheet to array format (similar to XLSX.utils.sheet_to_json)
+                const jsonData = [];
+                worksheet.eachRow((row, rowNumber) => {
+                    const rowData = [];
+                    row.eachCell({ includeEmpty: true }, (cell) => {
+                        rowData.push(cell.value);
+                    });
+                    jsonData.push(rowData);
+                });
+
+                // Extract embedded images using ExcelJS
+                const embeddedImages = await extractImagesFromExcel(arrayBuffer);
+
+                // Parse tasks (skip header and instruction rows)
+                const tasks = [];
+                console.log('Total rows in Excel:', jsonData.length);
+
+                for (let i = 2; i < jsonData.length; i++) {
+                    const row = jsonData[i];
+                    console.log(`Row ${i}:`, row);
+
+                    // Skip empty rows
+                    if (!row[0]) {
+                        console.log(`Skipping row ${i} - empty task name`);
+                        continue;
+                    }
+
+                    // Get images for this row (column B, which is index 1)
+                    const rowImages = embeddedImages.filter(img => img.row === i && img.col === 1);
+
+                    // Combine URL-based images and embedded images
+                    const imageUrls = row[1] && typeof row[1] === 'string' ? row[1].split(',').map(url => url.trim()).filter(url => url) : [];
+                    const embeddedImageData = rowImages.map(img => img.data);
+
+                    const task = {
+                        name: row[0],
+                        imageUrls: imageUrls, // URL-based images
+                        imageData: embeddedImageData, // Base64 embedded images
+                        description: row[2] || '',
+                        assignee: row[3] || null,
+                        dueDate: row[4] || null,
+                        tags: row[5] && typeof row[5] === 'string' ? row[5].split(',').map(t => t.trim()) : [],
+                        notes: row[6] || ''
+                    };
+
+                    console.log('Parsed task:', task);
+                    tasks.push(task);
+                }
+
+                console.log('Total tasks parsed:', tasks.length);
+
+                if (tasks.length === 0) {
+                    alert('No tasks found in the Excel file');
+                    return;
+                }
+
+                // Show progress
+                const uploadBtn = document.getElementById('upload-confirm-btn');
+                uploadBtn.textContent = `Creating ${tasks.length} tasks...`;
+                uploadBtn.disabled = true;
+
+                // Send to background script to create tasks
+                chrome.runtime.sendMessage({
+                    action: 'uploadExcel',
+                    projectGid: selectedProject,
+                    tasks: tasks
+                }, (response) => {
+                    if (!response) {
+                        alert('Error: No response from background script. Check console for errors.');
+                        uploadBtn.textContent = 'Upload & Create Tasks';
+                        uploadBtn.disabled = false;
+                        return;
+                    }
+
+                    if (response.success) {
+                        // Check if any tasks failed
+                        const failedTasks = response.results.filter(r => !r.success);
+                        const successCount = response.results.filter(r => r.success).length;
+
+                        if (failedTasks.length > 0) {
+                            const failedNames = failedTasks.map(t => `- ${t.taskName}: ${t.error}`).join('\n');
+                            alert(`Created ${successCount} tasks successfully.\n\n${failedTasks.length} tasks failed:\n${failedNames}`);
+                        } else {
+                            alert(`Successfully created ${successCount} tasks!`);
+                        }
+                        modalOverlay.remove();
+                    } else {
+                        alert('Error creating tasks: ' + (response.error || 'Unknown error'));
+                        uploadBtn.textContent = 'Upload & Create Tasks';
+                        uploadBtn.disabled = false;
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error processing Excel file:', error);
+                alert('Error reading Excel file: ' + error.message);
+            }
+        };
+
+        reader.readAsArrayBuffer(file);
     });
 
     // Close on overlay click
@@ -583,10 +742,22 @@ function createFloatingActionButton() {
     }
   });
 
+  // Setup Download Excel Action
+  downloadExcelBtn.addEventListener("click", async function () {
+    console.log("Download Excel clicked");
+    try {
+      await createExcelTemplate();
+    } catch (error) {
+      console.error("Error creating Excel template:", error);
+      alert("Error creating Excel template: " + error.message);
+    }
+    mainActionBtn.classList.remove("active");
+    actionMenu.classList.remove("show");
+  });
+
   // Setup Upload Excel Action
   uploadExcelBtn.addEventListener("click", function () {
     console.log("Upload Excel clicked");
-    // TODO: Add your upload excel functionality here
     uploadExcelModal();
     mainActionBtn.classList.remove("active");
     actionMenu.classList.remove("show");

@@ -3,13 +3,17 @@
   "name": "Kesana",
   "version": "1.0",
   "description": "Extend Asana with useful features",
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
   "permissions": [
     "clipboardWrite",
-    "storage",
-    "identity"
+    "cookies"
   ],
   "host_permissions": [
-    "https://app.asana.com/api/1.0/*"
+    "https://app.asana.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -18,17 +22,10 @@
     {
       "matches": ["https://app.asana.com/*"],
       "js": [
-        "vendors/xlsx.full.min.js",
-        "vendors/tailwind.js",
+        "vendors/exceljs.min.js",
         "content.js"
       ],
       "run_at": "document_idle"
     }
-  ],
-  "oauth2": {
-    "client_id": "1211524313577501",
-    "scopes": [
-      "default"
-    ]
-  }
+  ]
 }
