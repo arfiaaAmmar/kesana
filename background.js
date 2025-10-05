@@ -364,7 +364,13 @@ function buildTaskHtmlDescription(taskData) {
     // Left column: Images
     html += '<div style="flex-shrink: 0; width: 300px;">';
     allImages.forEach(imgSrc => {
-      html += `<div style="margin-bottom: 12px;"><img src="${imgSrc}" style="max-width: 100%; height: auto; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" /></div>`;
+      html += `<div style="margin-bottom: 12px;">
+                  <img 
+                      src="${imgSrc}" style="max-width: 100%; 
+                      height: auto; border-radius: 4px; 
+                      box-shadow: 0 2px 4px rgba(0,0,0,0.1);" 
+                   />
+               </div>`;
     });
     html += '</div>';
 
@@ -385,7 +391,9 @@ function buildTaskHtmlDescription(taskData) {
 
   // Add notes section below
   if (taskData.notes) {
-    html += `<div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #e0e0e0;"><strong>Notes:</strong><br>${taskData.notes.replace(/\n/g, '<br>')}</div>`;
+    html += `<div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
+                <strong>Notes:</strong><br>${taskData.notes.replace(/\n/g, '<br>')}
+             </div>`;
   }
 
   html += '</body>';

@@ -22,7 +22,7 @@
     {
       "matches": ["https://app.asana.com/*"],
       "js": [
-        "vendors/exceljs.min.js",
+        "exceljs.min.js",
         "content.js"
       ],
       "run_at": "document_idle"
