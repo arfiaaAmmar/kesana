@@ -57,7 +57,7 @@ The Excel template includes the following columns:
 | Tags | Comma-separated tags | No |
 | Notes | Additional notes for the task | No |
 
-## Privacy & Permissions
+## Privacy Policy and Permissions
 
 **We respect your privacy:**
 - No data collection or external servers
