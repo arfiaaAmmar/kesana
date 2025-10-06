@@ -27,5 +27,6 @@
       ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "privacy_policy": "https://github.com/arfiaaAmmar/kesana/blob/main/README.md#privacy-policy--permissions"
 }
